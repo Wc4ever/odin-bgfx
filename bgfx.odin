@@ -53,8 +53,10 @@ when ODIN_OS == .Windows {
     "darwin/libbxDebug.a",
     "system:Cocoa.framework",
     "system:IOKit.framework",
-    "system:OpenGL.framework",
+    "system:Metal.framework",
+    "system:MetalKit.framework",
     "system:QuartzCore.framework",
+    "system:stdc++",
   }
   } else {
   foreign import lib {
@@ -64,8 +66,10 @@ when ODIN_OS == .Windows {
     "darwin/libbxRelease.a",
     "system:Cocoa.framework",
     "system:IOKit.framework",
-    "system:OpenGL.framework",
+    "system:Metal.framework",
+    "system:MetalKit.framework",
     "system:QuartzCore.framework",
+    "system:stdc++",
   }
   }
 } else {

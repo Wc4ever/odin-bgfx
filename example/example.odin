@@ -2,32 +2,22 @@ package example
 
 import "core:fmt"
 import "core:c"
+import "core:time"
 import "core:c/libc"
 
-import "vendor:glfw"
+import SDL "vendor:sdl2"
 
 import bgfx ".."
 
 main :: proc() {
   window_size := [2]i32{ 640, 480 }
 
-  // Make Window
-  window : glfw.WindowHandle
-  {
-    if glfw.Init() {
-    } else {
-      panic("glfw.Init failed")
-    }
-
-    glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
-    window = glfw.CreateWindow(window_size.x, window_size.y, "Hello BGFX!", nil, nil)
-    if window != nil {
-    } else {
-      panic("glfw.CreateWindow failed")
-    }
-  }
-  defer glfw.DestroyWindow(window)
-  defer glfw.Terminate()
+  window := SDL.CreateWindow("Odin SDL2 Demo", SDL.WINDOWPOS_UNDEFINED, SDL.WINDOWPOS_UNDEFINED, window_size.x, window_size.y, {.OPENGL})
+	if window == nil {
+		fmt.eprintln("Failed to create window")
+		return
+	}
+	defer SDL.DestroyWindow(window)
 
   set_backbuffer_size :: proc(window_x : u32, window_y : u32) {
     bgfx.reset(window_x, window_y, { vsync = true })
@@ -38,7 +28,6 @@ main :: proc() {
   settings : bgfx.Init
   {
     bgfx.init_ctor(&settings)
-    // settings.type = .OpenGL
     settings.callback = new(bgfx.CallbackInterface)
     settings.callback.vtbl = new(bgfx.CallbackVTable)
     settings.callback.fatal = proc "c" (this : ^bgfx.CallbackInterface, file_path : cstring, line : u16, code : bgfx.Fatal, str : cstring) {}
@@ -56,7 +45,10 @@ main :: proc() {
     settings.callback.capture_end = proc "c" (this : ^bgfx.CallbackInterface) {}
     settings.callback.capture_frame = proc "c" (this : ^bgfx.CallbackInterface, data : /*const*/ rawptr, size : u32) {}
     add_platform_data(window, &settings.platform_data)
-    bgfx.init(&settings)
+    if !bgfx.init(&settings) 
+    {
+      fmt.eprintln("Cant inint bgfx!")
+    }
     set_backbuffer_size(u32(window_size.x), u32(window_size.y))
     bgfx.set_view_clear(0, { .Color, .Depth }, 0x110022FF)
     bgfx.set_debug({ .Text })
@@ -142,13 +134,32 @@ main :: proc() {
 
   // Main Loop
   last_window_size := window_size
-  for !glfw.WindowShouldClose(window) {
-    // Upkeep
-    glfw.PollEvents()
+  // high precision timer
+	start_tick := time.tick_now()
+  loop: for {
+		duration := time.tick_since(start_tick)
+		t := f32(time.duration_seconds(duration))
+		
+		// event polling
+		event: SDL.Event
+		for SDL.PollEvent(&event) {
+			// #partial switch tells the compiler not to error if every case is not present
+			#partial switch event.type {
+			case .KEYDOWN:
+				#partial switch event.key.keysym.sym {
+				case .ESCAPE:
+					// labelled control flow
+					break loop
+				}
+			case .QUIT:
+				// labelled control flow
+				break loop
+			}
+		}
 
     // Handle Window Resize
     defer last_window_size = window_size
-    window_size.x, window_size.y = glfw.GetWindowSize(window)
+    SDL.GetWindowSize(window, &window_size.x, &window_size.y)
     if last_window_size != window_size {
       set_backbuffer_size(u32(window_size.x), u32(window_size.y))
     }
@@ -185,56 +196,45 @@ main :: proc() {
 when ODIN_OS == .Windows {
 
   // Windows
-  add_platform_data :: proc(window : glfw.WindowHandle, platform_data : ^bgfx.PlatformData) {
-    platform_data.nwh = glfw.GetWin32Window(window)
+  add_platform_data :: proc(window : ^SDL.Window, platform_data : ^bgfx.PlatformData) {
+    info : SDL.SysWMinfo;
+		SDL.GetWindowWMInfo(window, &info);
+    platform_data.nwh = info.info.win.window
   }
 
 } else when ODIN_OS == .Linux {
 
-  foreign import libglfw "system:glfw"
   USE_WAYLAND :: false
 
   when USE_WAYLAND {
 
     // Linux + Wayland
-    foreign libglfw {
-      glfwGetWaylandDisplay :: proc() -> rawptr ---
-      glfwGetWaylandWindow :: proc(window : glfw.WindowHandle) -> rawptr ---
-    }
-    add_platform_data :: proc(window : glfw.WindowHandle, platform_data : ^bgfx.PlatformData) {
-      platform_data.ndt = glfwGetWaylandDisplay()
-      platform_data.nwh = glfwGetWaylandWindow()
+    add_platform_data :: proc(window : ^SDL.Window, platform_data : ^bgfx.PlatformData) {
+      info : SDL.SysWMinfo;
+		  SDL.GetWindowWMInfo(window, &info);
+      platform_data.ndt = info.info.wl.display
+      platform_data.nwh = info.info.wl.egl_window
       platform_data.type = .Wayland
     }
 
   } else {
 
     // Linux + X11
-    foreign libglfw {
-      glfwGetX11Display :: proc() -> rawptr ---
-      glfwGetX11Window :: proc(window : glfw.WindowHandle) -> rawptr ---
-    }
-    add_platform_data :: proc(window : glfw.WindowHandle, platform_data : ^bgfx.PlatformData) {
-      platform_data.ndt = glfwGetX11Display()
-      platform_data.nwh = glfwGetX11Window(window)
+    add_platform_data :: proc(window : ^SDL.Window, platform_data : ^bgfx.PlatformData) {
+      info : SDL.SysWMinfo;
+		  SDL.GetWindowWMInfo(window, &info);
+      platform_data.ndt = info.info.x11.display
+      platform_data.nwh = info.info.x11.window
       platform_data.type = .Default
     }
 
   }
 
 } else when ODIN_OS == .Darwin {
-
-  // NOTE 2024-06-01 This is untested, but I think it's at least mostly right...
-
-  // macOS
-  foreign import libglfw "system:glfw"
-
-  foreign libglfw {
-    glfwGetCocoaWindow :: proc(window : glfw.WindowHandle) -> rawptr ---
-  }
-
-  add_platform_data :: proc(window : glfw.WindowHandle, platform_data : ^bgfx.PlatformData) {
-    platform_data.nwh = glfwGetCocoaWindow(window)
+  add_platform_data :: proc(window : ^SDL.Window, platform_data : ^bgfx.PlatformData) {
+    info : SDL.SysWMinfo;
+		SDL.GetWindowWMInfo(window, &info);
+    platform_data.nwh = info.info.cocoa.window
   }
 
 } else {
