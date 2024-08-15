@@ -7,8 +7,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug",
+            "name": "Debug (OSX)",
             "program": "${workspaceFolder}/example.bin",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build"
+        },
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "name": "Debug (Win)",
+            "program": "${workspaceFolder}/example",
             "args": [],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "build"
