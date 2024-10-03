@@ -2,6 +2,8 @@
 
 [Odin](https://github.com/odin-lang/Odin) bindings for [bgfx](https://github.com/bkaradzic/bgfx).
 
+Example with SDL2 window.
+
 ### Extra Contents
 
 You can run the example program with `odin run example` from the root of this repository.
